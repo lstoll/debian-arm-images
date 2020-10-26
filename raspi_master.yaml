@@ -48,11 +48,14 @@ steps:
     - non-free
     unless: rootfs_unpacked
 
+# wget -qO - https://lstoll-kernels-apt.s3.amazonaws.com/GPGKEY | sudo apt-key add -
+
   - create-file: /etc/apt/sources.list
     trailing-newline: '1'
     contents: |
       deb http://deb.debian.org/debian buster main contrib non-free
       deb http://deb.debian.org/debian-security buster/updates main contrib non-free
+      deb https://lstoll-kernels-apt.s3.amazonaws.com buster main
       # Backports are _not_ enabled by default.
       # Enable them by uncommenting the following line:
       # deb http://deb.debian.org/debian buster-backports main contrib non-free

@@ -1,0 +1,109 @@
+From d2c98e73d23b8445f58482aee987378a98611c82 Mon Sep 17 00:00:00 2001
+From: Lincoln Stoll <me@lds.li>
+Date: Mon, 26 Oct 2020 11:24:53 +0000
+Subject: [PATCH] Start lstoll kernel builds
+
+Adantium, other kube helping options
+---
+ debian/config/amd64/config.lstoll-amd64 | 2 ++
+ debian/config/amd64/defines             | 4 ++++
+ debian/config/amd64/none/defines        | 6 ++++++
+ debian/config/arm64/config.lstoll-arm64 | 8 ++++++++
+ debian/config/arm64/defines             | 4 ++++
+ debian/config/arm64/none/defines        | 6 ++++++
+ 6 files changed, 30 insertions(+)
+ create mode 100644 debian/config/amd64/config.lstoll-amd64
+ create mode 100644 debian/config/arm64/config.lstoll-arm64
+
+diff --git a/debian/config/amd64/config.lstoll-amd64 b/debian/config/amd64/config.lstoll-amd64
+new file mode 100644
+index 000000000..9eb62eca7
+--- /dev/null
++++ b/debian/config/amd64/config.lstoll-amd64
+@@ -0,0 +1,2 @@
++# https://source.android.com/security/encryption/adiantum
++CONFIG_CRYPTO_ADIANTUM=y
+diff --git a/debian/config/amd64/defines b/debian/config/amd64/defines
+index b278f3622..296d93448 100644
+--- a/debian/config/amd64/defines
++++ b/debian/config/amd64/defines
+@@ -24,3 +24,7 @@ hardware-long: PCs with AMD64, Intel 64 or VIA Nano processors
+ [cloud-amd64_description]
+ hardware: x86-64 cloud
+ hardware-long: cloud platforms including Amazon EC2, Microsoft Azure, and Google Compute Engine
++
++[lstoll-amd64_description]
++hardware: x86-64 lstoll
++hardware-long: lstolls amd64 images
+diff --git a/debian/config/amd64/none/defines b/debian/config/amd64/none/defines
+index ada23557a..07794620c 100644
+--- a/debian/config/amd64/none/defines
++++ b/debian/config/amd64/none/defines
+@@ -2,9 +2,15 @@
+ flavours:
+  amd64
+  cloud-amd64
++ lstoll-amd64
+ default-flavour: amd64
+ 
+ [cloud-amd64_image]
+ configs:
+  config.cloud
+  amd64/config.cloud-amd64
++
++[lstoll-amd64_image]
++configs:
++ amd64/config
++ amd64/config.lstoll-amd64
+diff --git a/debian/config/arm64/config.lstoll-arm64 b/debian/config/arm64/config.lstoll-arm64
+new file mode 100644
+index 000000000..9bc7bd1dc
+--- /dev/null
++++ b/debian/config/arm64/config.lstoll-arm64
+@@ -0,0 +1,8 @@
++# https://source.android.com/security/encryption/adiantum
++CONFIG_CRYPTO_ADIANTUM=y
++
++# https://github.com/google/cadvisor/blob/9b7851c9fb0efb02e330ec88a8b54569e7a87529/machine/machine.go#L239-L270
++CONFIG_HOTPLUG_CPU=y
++
++# https://github.com/raspberrypi/linux/issues/3387
++CONFIG_CFS_BANDWIDTH=y
+diff --git a/debian/config/arm64/defines b/debian/config/arm64/defines
+index a61d02a4b..15da1f959 100644
+--- a/debian/config/arm64/defines
++++ b/debian/config/arm64/defines
+@@ -21,6 +21,10 @@ hardware: 64-bit ARMv8 machines
+ hardware: arm64 cloud
+ hardware-long: cloud platforms supporting arm64 virtual machines
+ 
++[lstoll-arm64_description]
++hardware: arm64 lstoll
++hardware-long: lstolls arm64 images
++
+ [arm64_image]
+ 
+ [relations]
+diff --git a/debian/config/arm64/none/defines b/debian/config/arm64/none/defines
+index 190576845..0df0b1d93 100644
+--- a/debian/config/arm64/none/defines
++++ b/debian/config/arm64/none/defines
+@@ -2,9 +2,15 @@
+ flavours:
+  arm64
+  cloud-arm64
++ lstoll-arm64
+ default-flavour: arm64
+ 
+ [cloud-arm64_image]
+ configs:
+  config.cloud
+  arm64/config.cloud-arm64
++
++[lstoll-arm64_image]
++configs:
++ arm64/config
++ arm64/config.lstoll-arm64
+-- 
+2.28.0
+

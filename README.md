@@ -1,7 +1,8 @@
 # Raspberry Pi image specs
 
-This repository contains the files with which the images referenced at
-https://wiki.debian.org/RaspberryPiImages have been built.
+This is a fork of https://salsa.debian.org/raspi-team/image-specs
+
+It is tweaked to build encrypted root images that I'm using. The image build is suitible for Rpi 3 + 4
 
 ## Option 1: Downloading an image
 
@@ -10,14 +11,88 @@ latest pre-built image.
 
 ## Option 2: Building your own image
 
-If you prefer, you can build a Debian buster Raspberry Pi image
-yourself. If you are reading this document online, you should first
-clone this repository:
+Use the [Vagrantfile](Vagrantfile) included to boot up a suitible VM (or to list the dependencies)
 
-```shell
-git clone --recursive https://salsa.debian.org/raspi-team/image-specs.git
-cd image-specs
+
+### Build a kernel
+
+We want a more up to date kernel with [adiantum](https://github.com/google/adiantum) enabled, as it's like 3x+ faster for encrypted volumes.
+
+#### Code prep
+
 ```
+git clone -n https://salsa.debian.org/kernel-team/linux.git debian-kernel
+cd debian-kernel
+git checkout debian/5.9.1-1
+(mkdir -p ../orig && cd ../orig && curl -LO http://cdn-fastly.deb.debian.org/debian/pool/main/l/linux/linux_5.9.1.orig.tar.xz)
+
+git am /vagrant/kernelbuild/*.patch
+```
+
+#### Host kernel
+
+We need one for the vagrant VM so we can create the initial FS and images.
+
+```
+ARCH=amd64
+FEATURESET=none
+FLAVOUR=lstoll-amd64
+export $(dpkg-architecture -a$ARCH)
+export PATH=/usr/lib/ccache:$PATH
+export DEB_BUILD_PROFILES="cross nopython nodoc pkg.linux.notools"
+export MAKEFLAGS="-j$(($(nproc)*2))"
+export DEBIAN_KERNEL_DISABLE_DEBUG=
+
+fakeroot make -f debian/rules clean
+fakeroot make -f debian/rules orig
+fakeroot make -f debian/rules source
+fakeroot make -f debian/rules.gen setup_${ARCH}_${FEATURESET}_${FLAVOUR}
+fakeroot make -f debian/rules.gen binary-arch_${ARCH}_${FEATURESET}_${FLAVOUR}
+
+```
+
+Additions will be needed. Make sure the latest version of virtualbox is installed (https://www.virtualbox.org/ticket/19845).
+
+#### Target kernel
+
+Build a kernel for the pi
+
+```
+ARCH=arm64
+FEATURESET=none
+FLAVOUR=lstoll-arm64
+export $(dpkg-architecture -a$ARCH)
+export PATH=/usr/lib/ccache:$PATH
+export DEB_BUILD_PROFILES="cross nopython nodoc pkg.linux.notools"
+export MAKEFLAGS="-j$(($(nproc)*2))"
+export DEBIAN_KERNEL_DISABLE_DEBUG=
+
+fakeroot make -f debian/rules clean
+fakeroot make -f debian/rules orig
+fakeroot make -f debian/rules source
+fakeroot make -f debian/rules.gen setup_${ARCH}_${FEATURESET}_${FLAVOUR}
+fakeroot make -f debian/rules.gen binary-arch_${ARCH}_${FEATURESET}_${FLAVOUR}
+```
+
+#### Releasing
+
+Publish to a apt repo on S3, for easier updates & distribution
+
+amd64:
+
+```
+aws-vault exec <profile> -- bundle exec deb-s3 upload -a amd64 -p -b lstoll-kernels-apt -c buster --sign=B26F07E7 debs/linux-image-5.9.0-1-lstoll-amd64-unsigned_5.9.1-1_amd64.deb
+aws-vault exec <profile> -- bundle exec deb-s3 upload -a amd64 -p -b lstoll-kernels-apt -c buster --sign=B26F07E7 debs/linux-headers-5.9.0-1-lstoll-amd64_5.9.1-1_amd64.deb
+```
+
+arm64:
+
+```
+aws-vault exec <profile> -- bundle exec deb-s3 upload -a arm64 -p -b lstoll-kernels-apt -c buster --sign=B26F07E7 debs/linux-image-5.9.0-1-lstoll-arm64-unsigned_5.9.1-1_arm64.deb
+aws-vault exec <profile> -- bundle exec deb-s3 upload -a arm64 -p -b lstoll-kernels-apt -c buster --sign=B26F07E7 debs/linux-headers-5.9.0-1-lstoll-arm64_5.9.1-1_arm64.deb
+```
+
+### Build an OS image
 
 For this you will first need to install the following packages on a
 Debian Buster (10) or higher system:
@@ -87,3 +162,8 @@ The image uses the hostname `rpi0w`, `rpi2`, `rpi3`, or `rpi4` depending on the
 target build. The provided image will allow you to log in with the
 `root` account with no password set, but only logging in at the
 physical console (be it serial or by USB keyboard and HDMI monitor).
+
+## References
+
+* https://salsa.debian.org/raspi-team/image-specs
+* https://wiki.debian.org/HowToCrossBuildAnOfficialDebianKernelPackage

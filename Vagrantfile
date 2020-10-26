@@ -17,7 +17,7 @@ Vagrant.configure("2") do |config|
     apt-get update
     apt-get install -y parted build-essential bc curl fakeroot git kernel-wedge quilt ccache flex bison libssl-dev dh-exec \
       crossbuild-essential-armhf crossbuild-essential-arm64 rsync libelf-dev cryptsetup vmdb2 dosfstools qemu-user-static \
-      binfmt-support
+      binfmt-support time
     echo "fs.inotify.max_user_watches=524288" > /etc/sysctl.d/50-inotify_user_watches.conf
     parted /dev/sda resizepart 1 100%
     resize2fs /dev/sda1

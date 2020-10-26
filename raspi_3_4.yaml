@@ -41,12 +41,17 @@ steps:
   - qemu-debootstrap: buster
     mirror: http://deb.debian.org/debian
     target: /
-    arch: __ARCH__
+    arch: arm64
     components:
     - main
     - contrib
     - non-free
     unless: rootfs_unpacked
+
+  # lstoll's key, signs kernel packages
+  # created with `wget -qO - https://lstoll-kernels-apt.s3.amazonaws.com/GPGKEY | gpg --dearmor - > B26F07E7.gpg`
+  - copy-file: /etc/apt/trusted.gpg.d/B26F07E7.gpg
+    src: B26F07E7.gpg
 
   - create-file: /etc/apt/sources.list
     trailing-newline: '1'
@@ -56,11 +61,13 @@ steps:
       # Backports are _not_ enabled by default.
       # Enable them by uncommenting the following line:
       # deb http://deb.debian.org/debian buster-backports main contrib non-free
-      __OTHER_APT_ENABLE__
+      deb http://deb.debian.org/debian/ unstable main contrib non-free # raspi 4 needs the latest kernel (5.5 or higher) and raspi-firmware newer than buster's
+      deb http://lstoll-kernels-apt.s3.amazonaws.com buster main # Custom kernel builds by lstoll
     unless: rootfs_unpacked
 
   - chroot: /
     shell: |
+      echo 'APT::Default-Release "buster";' > /etc/apt/apt.conf
       apt-get update
     unless: rootfs_unpacked
 
@@ -71,9 +78,10 @@ steps:
     - dosfstools
     - wireless-tools
     - wpasupplicant
-    - raspi3-firmware
-    - __LINUX_IMAGE__
-    __EXTRA_PKGS__
+    - raspi3-firmware/unstable
+    # TODO - do we want a meta package or something?
+    - linux-image-5.9.0-1-lstoll-arm64-unsigned
+    - firmware-brcm80211/unstable
     tag: /
     unless: rootfs_unpacked
 
@@ -81,7 +89,7 @@ steps:
     unless: rootfs_unpacked
 
   - shell: |
-      echo "__HOST__-$(date +%Y%m%d)" > "${ROOT?}/etc/hostname"
+      echo "rpi4-$(date +%Y%m%d)" > "${ROOT?}/etc/hostname"
 
       # Allow root logins locally with no password
       sed -i 's,root:[^:]*:,root::,' "${ROOT?}/etc/shadow"
@@ -111,7 +119,7 @@ steps:
   # Copy the relevant device tree files to the boot partition
   - chroot: /
     shell: |
-      install -m 644 -o root -g root __DTB__ /boot/firmware/
+      install -m 644 -o root -g root /usr/lib/linux-image-*-arm64/broadcom/bcm*rpi*.dtb /boot/firmware/
 
   # Clean up archive cache (likely not useful) and lists (likely outdated) to
   # reduce image size by several hundred megabytes.
@@ -126,6 +134,8 @@ steps:
     shell: |
       ls -aR /boot
       sed -i 's/.dev.mmcblk0p2/LABEL=RASPIROOT/' /boot/firmware/cmdline.txt
+      sed -i 's/cma=64M //' /boot/firmware/cmdline.txt
+      sed -i 's/cma=$CMA //' /etc/kernel/postinst.d/z50-raspi-firmware
 
   # TODO(https://github.com/larswirzenius/vmdb2/issues/24): remove once vmdb
   # clears /etc/resolv.conf on its own.

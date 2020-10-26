@@ -2,7 +2,7 @@ all: shasums
 
 # List all the supported and built Pi platforms here. They get expanded
 # to names like 'raspi_2.yaml' and 'raspi_0w.img.xz'.
-BUILD_PLATFORMS := 0w 2 3 4
+BUILD_PLATFORMS := 3_4
 
 platforms := $(addprefix raspi_,$(BUILD_PLATFORMS))
 shasums: $(addsuffix .sha256,$(platforms)) $(addsuffix .xz.sha256,$(platforms))

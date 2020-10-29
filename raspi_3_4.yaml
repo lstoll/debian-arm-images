@@ -18,29 +18,33 @@ steps:
     device: "{{ output }}"
     start: 20%
     end: 100%
-    tag: /
+    tag: root
 
   - kpartx: "{{ output }}"
+
+  - cryptsetup: root
+    tag: root_crypt
+    key-file: disk.pass
 
   - mkfs: vfat
     partition: /boot
     label: RASPIFIRM
 
   - mkfs: ext4
-    partition: /
+    partition: root_crypt
     label: RASPIROOT
 
-  - mount: /
+  - mount: root_crypt
 
   - mount: /boot
-    mount-on: /
+    mount-on: root_crypt
     dirname: '/boot/firmware'
 
-  - unpack-rootfs: /
+  - unpack-rootfs: root_crypt
 
   - qemu-debootstrap: buster
     mirror: http://deb.debian.org/debian
-    target: /
+    target: root_crypt
     arch: arm64
     components:
     - main
@@ -65,7 +69,7 @@ steps:
       deb http://lstoll-kernels-apt.s3.amazonaws.com buster main # Custom kernel builds by lstoll
     unless: rootfs_unpacked
 
-  - chroot: /
+  - chroot: root_crypt
     shell: |
       echo 'APT::Default-Release "buster";' > /etc/apt/apt.conf
       apt-get update
@@ -85,7 +89,7 @@ steps:
     tag: /
     unless: rootfs_unpacked
 
-  - cache-rootfs: /
+  - cache-rootfs: root_crypt
     unless: rootfs_unpacked
 
   - shell: |
@@ -114,23 +118,23 @@ steps:
       mkdir -p "${ROOT?}/etc/systemd/system/multi-user.target.requires/"
       ln -s /etc/systemd/system/rpi-generate-ssh-host-keys.service "${ROOT?}/etc/systemd/system/multi-user.target.requires/rpi-generate-ssh-host-keys.service"
       rm -f "${ROOT?}"/etc/ssh/ssh_host_*_key*
-    root-fs: /
+    root-fs: root_crypt
 
   # Copy the relevant device tree files to the boot partition
-  - chroot: /
+  - chroot: root_crypt
     shell: |
       install -m 644 -o root -g root /usr/lib/linux-image-*-arm64/broadcom/bcm*rpi*.dtb /boot/firmware/
 
   # Clean up archive cache (likely not useful) and lists (likely outdated) to
   # reduce image size by several hundred megabytes.
-  - chroot: /
+  - chroot: root_crypt
     shell: |
       apt-get clean
       rm -rf /var/lib/apt/lists
 
   # Modify the kernel commandline we take from the firmware to boot from
   # the partition labeled raspiroot instead of forcing it to mmcblk0p2
-  - chroot: /
+  - chroot: root_crypt
     shell: |
       ls -aR /boot
       sed -i 's/.dev.mmcblk0p2/LABEL=RASPIROOT/' /boot/firmware/cmdline.txt
@@ -141,4 +145,4 @@ steps:
   # clears /etc/resolv.conf on its own.
   - shell: |
       rm "${ROOT?}/etc/resolv.conf"
-    root-fs: /
+    root-fs: root_crypt

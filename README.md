@@ -21,12 +21,8 @@ We want a more up to date kernel with [adiantum](https://github.com/google/adian
 #### Code prep
 
 ```
-git clone -n https://salsa.debian.org/kernel-team/linux.git debian-kernel
 cd debian-kernel
-git checkout debian/5.9.1-1
 (mkdir -p ../orig && cd ../orig && curl -LO http://cdn-fastly.deb.debian.org/debian/pool/main/l/linux/linux_5.9.1.orig.tar.xz)
-
-git am /vagrant/kernelbuild/*.patch
 ```
 
 #### Host kernel
@@ -48,7 +44,6 @@ fakeroot make -f debian/rules orig
 fakeroot make -f debian/rules source
 fakeroot make -f debian/rules.gen setup_${ARCH}_${FEATURESET}_${FLAVOUR}
 fakeroot make -f debian/rules.gen binary-arch_${ARCH}_${FEATURESET}_${FLAVOUR}
-
 ```
 
 Additions will be needed. Make sure the latest version of virtualbox is installed (https://www.virtualbox.org/ticket/19845).

@@ -87,6 +87,25 @@ aws-vault exec <profile> -- bundle exec deb-s3 upload -a arm64 -p -b lstoll-kern
 aws-vault exec <profile> -- bundle exec deb-s3 upload -a arm64 -p -b lstoll-kernels-apt -c buster --sign=B26F07E7 debs/linux-headers-5.9.0-1-lstoll-arm64_5.9.1-1_arm64.deb
 ```
 
+### vmdb2 builds
+
+We customize this to allow us to tweak encryption settings
+
+### Build an image
+
+```
+sudo ../vmdb2/vmdb2  --verbose --rootfs-tarball=raspi_3_4.tar.gz --output=raspi_3_4.img raspi_3_4.yaml --log raspi_3_4.log
+cp raspi_3_4.img /vagrant/
+```
+
+on host
+
+```
+diskutil list
+diskutil unmountDisk /dev/diskX
+sudo dd if=raspi_3_4.img of=/dev/diskX bs=8m
+```
+
 ### Build an OS image
 
 For this you will first need to install the following packages on a

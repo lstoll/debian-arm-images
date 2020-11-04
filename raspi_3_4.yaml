@@ -24,7 +24,15 @@ steps:
 
   - cryptsetup: root
     tag: root_crypt
-    key-file: disk.pass
+    #key-file: disk.pass
+    key-cmd: echo -n passw0rd
+    addl-flags:
+      - "--cipher=xchacha20,aes-adiantum-plain64"
+      - "--sector-size=4096"
+      - "--pbkdf-memory=512000" # approx half ram. suits 1gb devices+
+      # We need to use this later to set the root device cmdline opts.
+      # Ideally this wouldn't be hardcoded, but no good way to track it for now.
+      - "--uuid=dd0c2ae3-2038-4477-8f46-440c0001a8ef"
 
   - mkfs: vfat
     partition: /boot
@@ -69,6 +77,9 @@ steps:
       deb http://lstoll-kernels-apt.s3.amazonaws.com buster main # Custom kernel builds by lstoll
     unless: rootfs_unpacked
 
+  # cryptroot needs /proc set up
+  - virtual-filesystems: root_crypt
+
   - chroot: root_crypt
     shell: |
       echo 'APT::Default-Release "buster";' > /etc/apt/apt.conf
@@ -82,12 +93,14 @@ steps:
     - dosfstools
     - wireless-tools
     - wpasupplicant
+    - dropbear-initramfs
+    - cryptsetup-initramfs
     - raspi3-firmware/unstable
     # TODO - do we want a meta package or something?
     - linux-image-5.9.0-1-lstoll-arm64-unsigned
     - firmware-brcm80211/unstable
-    tag: /
-    unless: rootfs_unpacked
+    tag: root_crypt
+    unless: rootfs_unpacked # TODO - is this what we want? Or just note to delete the cache when changing
 
   - cache-rootfs: root_crypt
     unless: rootfs_unpacked
@@ -98,7 +111,7 @@ steps:
       # Allow root logins locally with no password
       sed -i 's,root:[^:]*:,root::,' "${ROOT?}/etc/shadow"
 
-      install -m 644 -o root -g root rootfs/etc/fstab "${ROOT?}/etc/fstab"
+      # install -m 644 -o root -g root rootfs/etc/fstab "${ROOT?}/etc/fstab"
 
       install -m 644 -o root -g root rootfs/etc/network/interfaces.d/eth0 "${ROOT?}/etc/network/interfaces.d/eth0"
       install -m 600 -o root -g root rootfs/etc/network/interfaces.d/wlan0 "${ROOT?}/etc/network/interfaces.d/wlan0"
@@ -120,6 +133,8 @@ steps:
       rm -f "${ROOT?}"/etc/ssh/ssh_host_*_key*
     root-fs: root_crypt
 
+  - fstab: root_crypt # the raw block device. We'll fix this later based on the info it writes
+
   # Copy the relevant device tree files to the boot partition
   - chroot: root_crypt
     shell: |
@@ -133,13 +148,73 @@ steps:
       rm -rf /var/lib/apt/lists
 
   # Modify the kernel commandline we take from the firmware to boot from
-  # the partition labeled raspiroot instead of forcing it to mmcblk0p2
+  # the encrypted partition identified by it's uuid, rather than mmcblk0p2
   - chroot: root_crypt
     shell: |
+      cat /etc/fstab
+      # UUID=92A3-C2E4 /boot/firmware vfat errors=remount-ro 0 1
+      # UUID=3064bb02-56ad-440f-8306-4c61a05d7ebc / ext4 errors=remount-ro 0 1
+      cat /boot/firmware/cmdline.txt
       ls -aR /boot
-      sed -i 's/.dev.mmcblk0p2/LABEL=RASPIROOT/' /boot/firmware/cmdline.txt
+
+      echo "find cryptsetup: "
+      find /etc -name z50-raspi-firmware
+      ls -la /etc/kernel/postinst.d/z50-raspi-firmware
+      ls -la /etc/kernel/postrm.d/z50-raspi-firmware
+      ls -la /etc/initramfs/post-update.d/z50-raspi-firmware
+
+      echo "ls hooks: "
+      ls -aR /etc/initramfs
+      ls /etc/initramfs-tools/hooks/
+      # grep -R "cmdline.txt" /
+      echo "cat hook: "
+      ls -aR /usr/share/initramfs-tools/conf-hooks.d/
+      cat /usr/share/initramfs-tools/conf-hooks.d/cryptsetup
+
+      ls -aR /etc/kernel/postinst.d/
+      echo "cat raspifirm"
+      cat /etc/kernel/postinst.d/z50-raspi-firmware
+
+      # ROOT_UUID=$(lsblk -no UUID $(df -P / | awk 'END{print $1}'))
+      # TODO - do we want to capture this later maybe?
+      # ROOT_UUID=$(awk '$2 == "/" {split($1,sp,"="); print sp[2]}' /etc/fstab)
+      ROOT_UUID="dd0c2ae3-2038-4477-8f46-440c0001a8ef" # hardcoded earlier
+
+      echo "root_crypt  /dev/disk/by-uuid/${ROOT_UUID}  none  luks" >> /etc/crypttab
+      echo "" >> /etc/crypttab
+
+      cat << EOF > /etc/kernel/postinst.d/z55-cryptops-root
+      #!/bin/sh
+      # z50-raspi-firmware re-builds the cmdline. Get in after that to set the encrypted root info properly
+      sed -i "s/root=[^ ]*/root=\/dev\/mapper\/root_crypt cryptopts=target=root_crypt,source=\/dev\/disk\/by-uuid\/${ROOT_UUID},luks/" /boot/firmware/cmdline.txt
+      EOF
+      chmod +x /etc/kernel/postinst.d/z55-cryptops-root
+      cp /etc/kernel/postinst.d/z55-cryptops-root /etc/initramfs/post-update.d/z55-cryptops-root
+      cp /etc/kernel/postinst.d/z55-cryptops-root /etc/kernel/postrm.d/z55-cryptops-root
+
+      cat /boot/firmware/cmdline.txt
       sed -i 's/cma=64M //' /boot/firmware/cmdline.txt
       sed -i 's/cma=$CMA //' /etc/kernel/postinst.d/z50-raspi-firmware
+
+      update-initramfs -u -k all
+
+      echo "last cmdline"
+
+      cat /boot/firmware/cmdline.txt
+
+      # ls -aR /dev/disk/
+      cat /etc/fstab
+      echo "crypttab"
+      cat /etc/crypttab
+
+      echo "conf"
+      # cat /etc/initramfs-tools/conf.d/cryptroot
+      cat /etc/cryptsetup-initramfs/conf-hook
+
+      echo "modules"
+      ls -aR /lib/modules
+
+      echo "done"
 
   # TODO(https://github.com/larswirzenius/vmdb2/issues/24): remove once vmdb
   # clears /etc/resolv.conf on its own.

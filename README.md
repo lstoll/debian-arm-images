@@ -94,7 +94,7 @@ We customize this to allow us to tweak encryption settings
 ### Build an image
 
 ```
-sudo ../vmdb2/vmdb2  --verbose --rootfs-tarball=raspi_3_4.tar.gz --output=raspi_3_4.img raspi_3_4.yaml --log raspi_3_4.log
+sudo ../vmdb2/vmdb2  --verbose --rootfs-tarball=raspi_4.tar.gz --output=raspi_4.img raspi_4.yaml --log raspi_4.log
 cp raspi_3_4.img /vagrant/
 ```
 

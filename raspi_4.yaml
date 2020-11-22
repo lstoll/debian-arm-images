@@ -50,7 +50,7 @@ steps:
 
   - unpack-rootfs: root_crypt
 
-  - qemu-debootstrap: buster
+  - debootstrap: buster
     mirror: http://deb.debian.org/debian
     target: root_crypt
     arch: arm64
@@ -97,7 +97,8 @@ steps:
     - cryptsetup-initramfs
     - raspi3-firmware/unstable
     # TODO - do we want a meta package or something?
-    - linux-image-5.9.0-1-lstoll-arm64-unsigned
+    - linux-image-5.4.77-v8-lstoll
+    - linux-headers-5.4.77-v8-lstoll
     - firmware-brcm80211/unstable
     tag: root_crypt
     unless: rootfs_unpacked # TODO - is this what we want? Or just note to delete the cache when changing
@@ -138,7 +139,7 @@ steps:
   # Copy the relevant device tree files to the boot partition
   - chroot: root_crypt
     shell: |
-      install -m 644 -o root -g root /usr/lib/linux-image-*-arm64/broadcom/bcm*rpi*.dtb /boot/firmware/
+      # install -m 644 -o root -g root /usr/lib/linux-image-*-arm64/broadcom/bcm*rpi*.dtb /boot/firmware/
 
   # Clean up archive cache (likely not useful) and lists (likely outdated) to
   # reduce image size by several hundred megabytes.
@@ -151,6 +152,9 @@ steps:
   # the encrypted partition identified by it's uuid, rather than mmcblk0p2
   - chroot: root_crypt
     shell: |
+      # rpi packages don't trigger this?
+      DEB_MAINT_PARAMS="configure" /etc/kernel/postinst.d/z50-raspi-firmware
+
       cat /etc/fstab
       # UUID=92A3-C2E4 /boot/firmware vfat errors=remount-ro 0 1
       # UUID=3064bb02-56ad-440f-8306-4c61a05d7ebc / ext4 errors=remount-ro 0 1
